@@ -1,0 +1,6 @@
+target/
+.env
+.DS_Store
+/evm-profiler/out
+/evm-profiler/cache
+/evm-profiler/broadcast

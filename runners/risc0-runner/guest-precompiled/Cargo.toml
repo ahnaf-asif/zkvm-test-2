@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "risc0-guest-precompiled"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+workloads-core = { path = "../../../crates/workloads-core", features = ["precompiles-enabled"] }
+# risc0-zkvm = { version = "1.2", default-features = false }
+
+# Isolated root workspace allows RISC Zero accelerator patches without polluting other VMs:
+# [patch.crates-io]
+# sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.10.8-risczero.0" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

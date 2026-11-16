@@ -1,0 +1,43 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/workloads-core",
+    "crates/bench-common",
+    "crates/input-generator",
+    "runners/sp1-runner",
+    "runners/risc0-runner",
+    "runners/pico-runner",
+    "runners/jolt-runner",
+    "runners/nexus-runner",
+]
+exclude = [
+    "runners/sp1-runner/guest-unpatched",
+    "runners/sp1-runner/guest-precompiled",
+    "runners/risc0-runner/guest-unpatched",
+    "runners/risc0-runner/guest-precompiled",
+    "runners/pico-runner/guest-unpatched",
+    "runners/pico-runner/guest-precompiled",
+    "runners/jolt-runner/guest-unpatched",
+    "runners/jolt-runner/guest-precompiled",
+    "runners/nexus-runner/guest-unpatched",
+    "runners/nexus-runner/guest-precompiled",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+workloads-core = { path = "crates/workloads-core" }
+bench-common = { path = "crates/bench-common" }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = "1.0"
+sha2 = { version = "0.10", default-features = false }
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

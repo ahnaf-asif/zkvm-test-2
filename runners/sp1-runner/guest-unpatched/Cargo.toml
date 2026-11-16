@@ -1,0 +1,16 @@
+[workspace]
+
+[package]
+name = "sp1-guest-unpatched"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+workloads-core = { path = "../../../crates/workloads-core" }
+# sp1-zkvm = "4.0" # Enabled when SP1 toolchain is active
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

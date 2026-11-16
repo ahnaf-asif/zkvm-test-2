@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name = "sp1-guest-precompiled"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+workloads-core = { path = "../../../crates/workloads-core", features = ["precompiles-enabled"] }
+# sp1-zkvm = "4.0"
+
+# Isolated root workspace allows SP1 precompile patches without polluting other VMs:
+# [patch.crates-io]
+# sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-0.10.8-sp1-4.0.0" }
+# tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-2.0.2-sp1-4.0.0" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

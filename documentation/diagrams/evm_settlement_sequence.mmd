@@ -1,0 +1,34 @@
+sequenceDiagram
+    participant Guest as RISC-V Guest<br/>(workloads-core)
+    participant Host as zkVM Host<br/>CLI Prover
+    participant SNARK as Stage C Wrapper<br/>(Groth16 / PLONK)
+    participant EVM as BenchmarkSettlement<br/>(Cancun EVM)
+    participant Verifier as BN254 Verifier<br/>Smart Contract
+
+    rect rgb(232, 245, 233)
+        Note over Guest,Verifier: Policy P1: RawCommitArray Mode — O(n) Linear L1 Calldata & Hashing Gas
+        Host->>Guest: 1. Feed n secret witnesses<br/>(ballots, bids, or leaves)
+        Note over Guest,Host: 2. Enforce predicate R(x_i) = 1<br/>& derive 32B commitments C_1 ... C_n
+        Guest-->>Host: 3. Commit publicValues<br/>C_1 || ... || C_n || count (32n + 4 B)
+        Host->>SNARK: 4. Request recursive<br/>STARK-to-SNARK wrap
+        SNARK-->>Host: 5. Return BN254 proof<br/>& vkey fixture
+        SNARK->>EVM: 6. Submit (vkey, publicValues [32n + 4 B], proofBytes)<br/>to settleRawCommitArraySha256 / Keccak()
+        Note over EVM,Verifier: 7. Pays EIP-2028 Calldata Gas<br/>(~510.5 * n gas for 32n + 4 B)
+        EVM->>Verifier: 8. verifyProof(vkey,<br/>publicValues, proofBytes)
+        Verifier-->>EVM: 9. Validated via BN254<br/>ecPairing (0x08)
+        Note over EVM,Verifier: 10. Hash all 32n + 4 B on-chain (sha256 0x02 or keccak256 0x20)<br/>& store latestBatchDigest
+    end
+
+    rect rgb(227, 242, 253)
+        Note over Guest,Verifier: Policy P2: HashCommit Mode — O(1) Constant L1 Settlement Gas
+        Host->>Guest: 11. Feed n secret witnesses<br/>(ballots, bids, or leaves)
+        Note over Guest,Host: 12. Enforce R(x_i) = 1, derive C_1 ... C_n,<br/>& fold in-VM: D = H(C_1 || ... || C_n)
+        Guest-->>Host: 13. Commit folded publicValues<br/>D || count (36 B constant)
+        Host->>SNARK: 14. Request recursive<br/>STARK-to-SNARK wrap
+        SNARK-->>Host: 15. Return BN254 proof<br/>& vkey fixture
+        SNARK->>EVM: 16. Submit (vkey, publicValues [36 B], proofBytes)<br/>to settleHashCommit()
+        Note over EVM,Verifier: 17. Pays Constant 36 B Calldata Gas<br/>(Strictly O(1) Invariant to Batch Size n)
+        EVM->>Verifier: 18. verifyProof(vkey,<br/>publicValues, proofBytes)
+        Verifier-->>EVM: 19. Validated via BN254<br/>ecPairing (0x08)
+        Note over EVM,Verifier: 20. O(1) assembly calldataload(publicValues.offset)<br/>& store latestBatchDigest
+    end

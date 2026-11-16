@@ -1,0 +1,14 @@
+[package]
+name = "workloads-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+sha2.workspace = true
+tiny-keccak.workspace = true
+
+[features]
+default = []
+precompiles-enabled = []

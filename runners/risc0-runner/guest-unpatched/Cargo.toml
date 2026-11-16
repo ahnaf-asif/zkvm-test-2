@@ -1,0 +1,16 @@
+[workspace]
+
+[package]
+name = "risc0-guest-unpatched"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+workloads-core = { path = "../../../crates/workloads-core" }
+# risc0-zkvm = { version = "1.2", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

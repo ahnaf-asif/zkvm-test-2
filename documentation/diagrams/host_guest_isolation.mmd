@@ -1,0 +1,30 @@
+flowchart LR
+    classDef sharedPkg fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
+    classDef guestPkg fill:#fff8e1,stroke:#f57f17,stroke-width:2px,color:#e65100
+    classDef hostPkg fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
+
+    subgraph Shared["1. Shared Root Crates (crates/)"]
+        direction TB
+        WC["crates/workloads-core<br/>(#![no_std] + alloc)<br/>Feature: precompiles-enabled"]:::sharedPkg
+        BC["crates/bench-common<br/>Typed RunMetrics Schema<br/>& ProvingMode Enum"]:::sharedPkg
+        IG["crates/input-generator<br/>ChaCha20Rng(20261111)<br/>Deterministic Vector CLI"]:::sharedPkg
+    end
+
+    subgraph Guests["2. Excluded Standalone Guest Workspaces (per VM)"]
+        direction TB
+        GU["runners/[vm]-runner/guest-unpatched/<br/>Standalone [workspace]<br/>Standard sha2 & tiny-keccak<br/>(Pure RISC-V ALU Execution)"]:::guestPkg
+        GP["runners/[vm]-runner/guest-precompiled/<br/>Standalone [workspace]<br/>Vendor [patch.crates-io] Overrides<br/>(Syscall-Accelerated Hashing)"]:::guestPkg
+    end
+
+    subgraph Host["3. Host Benchmark CLI (runners/)"]
+        direction TB
+        HR["runners/[vm]-runner<br/>Host Prover & Profiler CLI<br/>Selects ELF via --precompiles"]:::hostPkg
+    end
+
+    WC -->|"Path Dependency"| GU
+    WC -->|"Path Dependency + Feature"| GP
+    WC -->|"Shared Input Types"| HR
+    BC -->|"JSON / CSV Schema"| HR
+    IG -.->|"Pre-generated data/*.bin"| HR
+    GU -.->|"Unpatched RISC-V ELF"| HR
+    GP -.->|"Precompiled RISC-V ELF"| HR

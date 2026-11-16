@@ -1,0 +1,10 @@
+// SP1 Unpatched Guest (Pure RISC-V ALU execution)
+// #![no_main]
+// sp1_zkvm::entrypoint!(main);
+use workloads_core::{execute_workload, WorkloadPayload};
+
+pub fn dispatch(payload: &WorkloadPayload) -> Vec<u8> {
+    execute_workload(payload)
+}
+
+fn main() {}
