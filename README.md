@@ -40,18 +40,18 @@ All five computational predicates are implemented in a single `#![no_std]` + `al
 1. **$`W_1`$ — Binary and One-Hot Ballot Validation with Cryptographic Nullifiers ([`voting.rs`](./crates/workloads-core/src/voting.rs))**:
    - Given $`n`$ secret ballot vectors $`v^{(i)} = (v_{i,1}, \dots, v_{i,k}) \in \mathbb{Z}^k`$ for $`k`$ candidates and secret voter trapdoors $`s_i`$, enforces Boolean validity and single-choice selection:
 
-     $$
-     \mathcal{R}_{\text{vote}}(v^{(i)}) = 1 \iff (\forall j \in \{1, \dots, k\} : v_{i,j} \in \{0, 1\}) \land \left(\sum_{j=1}^k v_{i,j} = 1\right)
-     $$
+  $$
+  \mathcal{R}_{\text{vote}}(v^{(i)}) = 1 \iff (\forall j \in \{1, \dots, k\} : v_{i,j} \in \{0, 1\}) \land \left(\sum_{j=1}^k v_{i,j} = 1\right)
+  $$
 
    - Derives a 32-byte nullifier $`N_i = \text{SHA256}(s_i \parallel v^{(i)})`$ per ballot without leaking cleartext votes.
 
 2. **$`W_2`$ — Numerical Range Validation with Bid Commitments ([`auction.rs`](./crates/workloads-core/src/auction.rs))**:
    - Given $`n`$ secret auction bids $`u_1, \dots, u_n \in \mathbb{Z}`$, blinding nonces $`r_1, \dots, r_n`$, bit-width $`b \in \{8, 16, 32, 64, 96, 120\}`$, and reserve price $`R_{\min}`$, verifies interval membership:
 
-     $$
-     \mathcal{R}_{\text{range}}(u_i, b, R_{\min}) = 1 \iff R_{\min} \le u_i < 2^b
-     $$
+  $$
+  \mathcal{R}_{\text{range}}(u_i, b, R_{\min}) = 1 \iff R_{\min} \le u_i < 2^b
+  $$
 
    - Uses explicit two-word `(lo: u64, hi: u64)` representations and tests $`b \in \{96, 120\}`$ rather than $`b = 128`$ so LLVM's `instcombine` pass cannot eliminate $`u_i < 2^{128}`$ as a compile-time tautology. Produces binding commitments $`C_i = \text{SHA256}(u_i \parallel r_i)`$.
 
@@ -68,9 +68,9 @@ All five computational predicates are implemented in a single `#![no_std]` + `al
 5. **$`W_5`$ — Deterministic Fixed-Limb Multi-Precision Modular Arithmetic ([`bigint_mod.rs`](./crates/workloads-core/src/bigint_mod.rs))**:
    - Computes $`n`$ modular multiplications and modular exponentiations over $`L`$-bit integers ($`L \in \{256, 512, 1024, 2048\}`$, $`k = \lceil L/32 \rceil \in \{8, 16, 32, 64\}`$ limbs of type `u32`):
 
-     $$
-     z_i \equiv x_i^e \pmod{M_L}
-     $$
+  $$
+  z_i \equiv x_i^e \pmod{M_L}
+  $$
 
    - Uses explicit fixed-limb `[u32; k]` schoolbook multiplication (`u32 * u32 -> u64` carry propagation) paired with division-free Hensel-lifted Montgomery reduction over all $`2k`$ limbs. This prevents `u128` software-emulation panics on `RV32I` targets (Jolt/Nexus) and prevents LLVM Dead Store Elimination.
 
