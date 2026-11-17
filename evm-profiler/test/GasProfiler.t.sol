@@ -8,11 +8,7 @@ import "../src/verifiers/IZkVMVerifier.sol";
 /// Mock verifier for smoke-testing EIP-2028 calldata and P1 vs P2 journal hashing divergence
 /// before real Groth16 / PLONK fixtures are loaded from proofs/.
 contract MockBn254Verifier is IZkVMVerifier {
-    function verifyProof(
-        bytes32,
-        bytes calldata,
-        bytes calldata proofBytes
-    ) external pure override {
+    function verifyProof(bytes32, bytes calldata, bytes calldata proofBytes) external pure override {
         require(proofBytes.length >= 256, "Invalid SNARK proof length");
     }
 }
@@ -48,27 +44,24 @@ contract GasProfilerTest is Test {
         pubP2[32] = 0x40; // n = 64 in little-endian
 
         // 1. P1 (SHA-256)
-        uint256 dataGasP1Sha = computeCalldataGas(
-            abi.encodeCall(BenchmarkSettlement.settleRawCommitArraySha256, (vkey, pubP1, proof))
-        );
+        uint256 dataGasP1Sha =
+            computeCalldataGas(abi.encodeCall(BenchmarkSettlement.settleRawCommitArraySha256, (vkey, pubP1, proof)));
         uint256 g0 = gasleft();
         settlement.settleRawCommitArraySha256(vkey, pubP1, proof);
         uint256 execGasP1Sha = g0 - gasleft();
         uint256 totalP1Sha = 21000 + dataGasP1Sha + execGasP1Sha;
 
         // 2. P1 (Keccak-256)
-        uint256 dataGasP1Keccak = computeCalldataGas(
-            abi.encodeCall(BenchmarkSettlement.settleRawCommitArrayKeccak, (vkey, pubP1, proof))
-        );
+        uint256 dataGasP1Keccak =
+            computeCalldataGas(abi.encodeCall(BenchmarkSettlement.settleRawCommitArrayKeccak, (vkey, pubP1, proof)));
         uint256 g1 = gasleft();
         settlement.settleRawCommitArrayKeccak(vkey, pubP1, proof);
         uint256 execGasP1Keccak = g1 - gasleft();
         uint256 totalP1Keccak = 21000 + dataGasP1Keccak + execGasP1Keccak;
 
         // 3. P2 (HashCommit O(1))
-        uint256 dataGasP2 = computeCalldataGas(
-            abi.encodeCall(BenchmarkSettlement.settleHashCommit, (vkey, pubP2, proof))
-        );
+        uint256 dataGasP2 =
+            computeCalldataGas(abi.encodeCall(BenchmarkSettlement.settleHashCommit, (vkey, pubP2, proof)));
         uint256 g2 = gasleft();
         settlement.settleHashCommit(vkey, pubP2, proof);
         uint256 execGasP2 = g2 - gasleft();
