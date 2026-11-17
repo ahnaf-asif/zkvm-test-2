@@ -40,18 +40,18 @@ All five computational predicates are implemented in a single `#![no_std]` + `al
 1. **$`W_1`$ — Binary and One-Hot Ballot Validation with Cryptographic Nullifiers ([`voting.rs`](./crates/workloads-core/src/voting.rs))**:
    - Given $`n`$ secret ballot vectors $`v^{(i)} = (v_{i,1}, \dots, v_{i,k}) \in \mathbb{Z}^k`$ for $`k`$ candidates and secret voter trapdoors $`s_i`$, enforces Boolean validity and single-choice selection:
 
-  $$
-  \mathcal{R}_{\text{vote}}(v^{(i)}) = 1 \iff (\forall j \in \{1, \dots, k\} : v_{i,j} \in \{0, 1\}) \land \left(\sum_{j=1}^k v_{i,j} = 1\right)
-  $$
+$$
+\mathcal{R}_{\text{vote}}(v^{(i)}) = 1 \iff (\forall j \in \{1, \dots, k\} : v_{i,j} \in \{0, 1\}) \land \left(\sum_{j=1}^k v_{i,j} = 1\right)
+$$
 
    - Derives a 32-byte nullifier $`N_i = \text{SHA256}(s_i \parallel v^{(i)})`$ per ballot without leaking cleartext votes.
 
 2. **$`W_2`$ — Numerical Range Validation with Bid Commitments ([`auction.rs`](./crates/workloads-core/src/auction.rs))**:
    - Given $`n`$ secret auction bids $`u_1, \dots, u_n \in \mathbb{Z}`$, blinding nonces $`r_1, \dots, r_n`$, bit-width $`b \in \{8, 16, 32, 64, 96, 120\}`$, and reserve price $`R_{\min}`$, verifies interval membership:
 
-  $$
-  \mathcal{R}_{\text{range}}(u_i, b, R_{\min}) = 1 \iff R_{\min} \le u_i < 2^b
-  $$
+$$
+\mathcal{R}_{\text{range}}(u_i, b, R_{\min}) = 1 \iff R_{\min} \le u_i < 2^b
+$$
 
    - Uses explicit two-word `(lo: u64, hi: u64)` representations and tests $`b \in \{96, 120\}`$ rather than $`b = 128`$ so LLVM's `instcombine` pass cannot eliminate $`u_i < 2^{128}`$ as a compile-time tautology. Produces binding commitments $`C_i = \text{SHA256}(u_i \parallel r_i)`$.
 
@@ -68,9 +68,9 @@ All five computational predicates are implemented in a single `#![no_std]` + `al
 5. **$`W_5`$ — Deterministic Fixed-Limb Multi-Precision Modular Arithmetic ([`bigint_mod.rs`](./crates/workloads-core/src/bigint_mod.rs))**:
    - Computes $`n`$ modular multiplications and modular exponentiations over $`L`$-bit integers ($`L \in \{256, 512, 1024, 2048\}`$, $`k = \lceil L/32 \rceil \in \{8, 16, 32, 64\}`$ limbs of type `u32`):
 
-  $$
-  z_i \equiv x_i^e \pmod{M_L}
-  $$
+$$
+z_i \equiv x_i^e \pmod{M_L}
+$$
 
    - Uses explicit fixed-limb `[u32; k]` schoolbook multiplication (`u32 * u32 -> u64` carry propagation) paired with division-free Hensel-lifted Montgomery reduction over all $`2k`$ limbs. This prevents `u128` software-emulation panics on `RV32I` targets (Jolt/Nexus) and prevents LLVM Dead Store Elimination.
 
@@ -82,9 +82,9 @@ All five computational predicates are implemented in a single `#![no_std]` + `al
 ### 3.3 Dimension 3: Public Output Commitment Policy ($`\mathcal{P}_{\text{io}}`$)
 - **Policy $`\mathcal{P}_1`$ (`RawCommitArray`)**: Commits all $`n`$ 32-byte item commitments/nullifiers plus 4-byte count ($`32n + 4`$ bytes) to the public journal. The Solidity contract receives all $`32n + 4`$ bytes via transaction calldata (EIP-2028: 16 gas/non-zero byte, 4 gas/zero byte) and hashes them on-chain (`keccak256` or `sha256`):
 
-  $$
-  G_{\text{total}}^{\mathcal{P}_1}(n) = 21,000 + G_{\text{pairing}} + \Theta(n) \cdot (G_{\text{calldata}} + G_{\text{evm\_hash}})
-  $$
+$$
+G_{\text{total}}^{\mathcal{P}_1}(n) = 21,000 + G_{\text{pairing}} + \Theta(n) \cdot (G_{\text{calldata}} + G_{\text{evm\_hash}})
+$$
 
 - **Policy $`\mathcal{P}_2`$ (`HashCommit` / `HashCommitKeccak`)**: Folds all $`n`$ commitments inside the zkVM into a single 32-byte accumulator digest $`D = H(C_1 \parallel \dots \parallel C_n)`$ plus 4-byte batch count ($`36`$ bytes total), achieving strictly constant $`\mathcal{O}(1)`$ on-chain EVM verification gas regardless of batch size $`n`$.
 
@@ -154,7 +154,7 @@ Every benchmark run collects the standardized metrics defined in [`crates/bench-
 | **Proving** | $`\pi_{\text{core}}`$ | Bytes | Serialized byte length of uncompressed Core proof artifact. |
 | **Proving** | $`\pi_{\text{evm}}`$ | Bytes | Serialized byte length of wrapped EVM SNARK proof ($`\sim 260\text{--}800\text{ B}`$). |
 | **Blockchain (EVM)** | $`G_{\text{exec}}`$ | Gas | EVM opcode + BN254 `ecPairing` (`0x08`) + journal hashing execution gas. |
-| **Blockchain (EVM)** | $`G_{\text{data}}`$ | Gas | EIP-2028 calldata gas ($`16 \cdot B_{\ne 0} + 4 \cdot B_{=0}`$) for proof + journal. |
+| **Blockchain (EVM)** | $`G_{\text{data}}`$ | Gas | EIP-2028 calldata gas ($`16 \cdot B_{\neq 0} + 4 \cdot B_{=0}`$) for proof + journal. |
 | **Blockchain (EVM)** | $`G_{\text{total}}`$ | Gas | Total L1 transaction gas: $`21,000 + G_{\text{data}} + G_{\text{exec}}`$. |
 | **Blockchain (EVM)** | $`G_{\text{amort}}(n)`$ | Gas/item | Amortized gas per validated input: $`G_{\text{total}}(n) / n`$. |
 
@@ -165,15 +165,15 @@ Every benchmark run collects the standardized metrics defined in [`crates/bench-
 1. **Exact L1 Gas Divergence Between $`\mathcal{P}_1`$ and $`\mathcal{P}_2`$**:
    Under Policy $`\mathcal{P}_1`$, each validated item appends a uniformly distributed 32-byte commitment $`C_i \in \{0, \dots, 255\}^{32}`$ to calldata ($`32 \times \frac{255}{256} = 31.875`$ expected non-zero bytes $`\implies 510.5`$ calldata gas/item), plus $`6`$ gas/item (`keccak256`) or $`12`$ gas/item (`sha256`):
 
-   $$
-   \Delta G_{\text{L1}}(n) = G_{\text{total}}^{\mathcal{P}_1}(n) - G_{\text{total}}^{\mathcal{P}_2}(n) \approx 516.5 \cdot (n - 1) \text{ gas (Keccak)} \quad \text{or} \quad 522.5 \cdot (n - 1) \text{ gas (SHA-256)}
-   $$
+$$
+\Delta G_{\text{L1}}(n) = G_{\text{total}}^{\mathcal{P}_1}(n) - G_{\text{total}}^{\mathcal{P}_2}(n) \approx 516.5 \cdot (n - 1) \text{ gas (Keccak)} \quad \text{or} \quad 522.5 \cdot (n - 1) \text{ gas (SHA-256)}
+$$
 
 2. **Shard-Boundary Step Function**:
 
-   $$
-   T_{\text{core}}(n) \approx T_{\text{setup}} + \tau_{\text{shard}} \cdot \left\lceil \frac{C_{\text{base}} + n \cdot c_{\text{item}}}{S_{\text{shard}}} \right\rceil
-   $$
+$$
+T_{\text{core}}(n) \approx T_{\text{setup}} + \tau_{\text{shard}} \cdot \left\lceil \frac{C_{\text{base}} + n \cdot c_{\text{item}}}{S_{\text{shard}}} \right\rceil
+$$
 
 3. **Range Bit-Width Invariance ($`b \le 64`$)** : Two-register `SLTU` comparisons execute in $`\Theta(n)`$ independent of $`b`$, contrasting with $`\Theta(n \cdot b)`$ bit-decomposition circuits.
 4. **Quadratic/Cubic Multi-Limb Wall ($`W_5`$)** : Scaling $`L`$ from $`256`$ bits ($`k=8`$) to $`2048`$ bits ($`k=64`$) increases schoolbook limb multiplications per reduction by $`(64/8)^2 = 64\times`$ and full $`L`$-bit exponentiation work by $`(64/8)^3 = 512\times`$.
