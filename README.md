@@ -83,7 +83,7 @@ $$
 - **Policy $`\mathcal{P}_1`$ (`RawCommitArray`)**: Commits all $`n`$ 32-byte item commitments/nullifiers plus 4-byte count ($`32n + 4`$ bytes) to the public journal. The Solidity contract receives all $`32n + 4`$ bytes via transaction calldata (EIP-2028: 16 gas/non-zero byte, 4 gas/zero byte) and hashes them on-chain (`keccak256` or `sha256`):
 
 $$
-G_{\text{total}}^{\mathcal{P}_1}(n) = 21,000 + G_{\text{pairing}} + \Theta(n) \cdot (G_{\text{calldata}} + G_{\text{evm\_hash}})
+G_{\text{total}}^{\mathcal{P}_1}(n) = 21,000 + G_{\text{pairing}} + \Theta(n) \cdot (G_{\text{calldata}} + G_{\text{evm-hash}})
 $$
 
 - **Policy $`\mathcal{P}_2`$ (`HashCommit` / `HashCommitKeccak`)**: Folds all $`n`$ commitments inside the zkVM into a single 32-byte accumulator digest $`D = H(C_1 \parallel \dots \parallel C_n)`$ plus 4-byte batch count ($`36`$ bytes total), achieving strictly constant $`\mathcal{O}(1)`$ on-chain EVM verification gas regardless of batch size $`n`$.
