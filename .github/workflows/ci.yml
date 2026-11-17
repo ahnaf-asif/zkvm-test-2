@@ -1,0 +1,158 @@
+name: CI — Pre-Merge Verification Suite
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "documentation/**"
+      - "*.md"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "documentation/**"
+      - "*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust-workspace:
+    name: Rust Workspace, #![no_std] & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain & RV32IM #![no_std] target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: riscv32im-unknown-none-elf
+
+      - name: Cache Cargo registry and target directory
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Verify #![no_std] compilation of workloads-core on RV32IM
+        run: cargo check -p workloads-core --target riscv32im-unknown-none-elf
+
+      - name: Check workspace compilation
+        run: cargo check --workspace --all-targets
+
+      - name: Run pedantic Clippy on core crates
+        run: cargo clippy -p workloads-core -p bench-common -p input-generator --all-targets -- -D warnings -D clippy::pedantic
+
+      - name: Run standard Clippy across full workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run workspace unit, integration & doc tests
+        run: cargo test --workspace
+
+  isolated-guests:
+    name: Isolated Guests (10 zkVM Guest Crates)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Guest target directory
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: guests-check
+          cache-directories: target/guest-check
+
+      - name: Verify formatting and Clippy across all 10 isolated guest crates
+        run: |
+          set -euo pipefail
+          for vm in sp1 risc0 pico jolt nexus; do
+            echo "=== Verifying ${vm}-runner isolated guests ==="
+            cargo fmt --manifest-path "runners/${vm}-runner/guest-unpatched/Cargo.toml" -- --check
+            cargo fmt --manifest-path "runners/${vm}-runner/guest-precompiled/Cargo.toml" -- --check
+            CARGO_TARGET_DIR="${GITHUB_WORKSPACE}/target/guest-check" \
+              cargo clippy --manifest-path "runners/${vm}-runner/guest-unpatched/Cargo.toml" \
+              --all-targets -- -D warnings
+            CARGO_TARGET_DIR="${GITHUB_WORKSPACE}/target/guest-check" \
+              cargo clippy --manifest-path "runners/${vm}-runner/guest-precompiled/Cargo.toml" \
+              --all-targets -- -D warnings
+          done
+
+  deterministic-inputs:
+    name: Config, Scripts & Deterministic Input Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and target directory
+        uses: Swatinem/rust-cache@v2
+
+      - name: Validate benchmark_matrix.json syntax
+        run: jq empty config/benchmark_matrix.json
+
+      - name: Lint shell & Python scripts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for script in scripts/*.sh; do
+            echo "Checking ${script}..."
+            bash -n "$script"
+            shellcheck "$script"
+          done
+          for pyfile in scripts/*.py; do
+            echo "Checking ${pyfile}..."
+            python3 -m py_compile "$pyfile"
+          done
+
+      - name: Verify deterministic input generation & manifest reproducibility
+        run: |
+          set -euo pipefail
+          SUITE=smoke ./scripts/01_generate_inputs.sh
+          HASH_RUN_1="$(sha256sum data/manifest.json | awk '{print $1}')"
+          SUITE=smoke ./scripts/01_generate_inputs.sh
+          HASH_RUN_2="$(sha256sum data/manifest.json | awk '{print $1}')"
+          echo "Run 1 manifest SHA-256: ${HASH_RUN_1}"
+          echo "Run 2 manifest SHA-256: ${HASH_RUN_2}"
+          test "$HASH_RUN_1" = "$HASH_RUN_2"
+
+  evm-foundry:
+    name: Foundry Cancun EVM & EIP-2028 Gas Profiler
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: evm-profiler
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Foundry toolchain (forge, anvil, cast)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Check Solidity formatting
+        run: forge fmt src test --check
+
+      - name: Compile Cancun EVM settlement & verifier contracts
+        run: forge build --sizes
+
+      - name: Run EIP-2028 P1 vs P2 settlement gas decomposition tests
+        run: forge test -vv --gas-report

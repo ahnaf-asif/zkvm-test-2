@@ -9,3 +9,6 @@ optimizer_runs = 200
 via_ir = true
 gas_reports = ["*"]
 fs_permissions = [{ access = "read", path = "./proofs" }]
+
+[fmt]
+ignore = ["lib/**"]
