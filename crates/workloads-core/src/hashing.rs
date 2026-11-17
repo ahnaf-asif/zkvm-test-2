@@ -5,8 +5,9 @@ use tiny_keccak::{Hasher, Keccak};
 
 use crate::{finalize_journal_with_alg, HashAlg, OutputPolicy};
 
-/// Compute a 32-byte digest over a single slice using the requested hash algorithm.
+/// Computes a 32-byte digest over a single slice using the requested hash algorithm.
 #[inline]
+#[must_use]
 pub fn hash_bytes(alg: HashAlg, data: &[u8]) -> [u8; 32] {
     match alg {
         HashAlg::Sha256 => {
@@ -24,8 +25,9 @@ pub fn hash_bytes(alg: HashAlg, data: &[u8]) -> [u8; 32] {
     }
 }
 
-/// Compute a 32-byte digest over two concatenated slices `left || right`.
+/// Computes a 32-byte digest over two concatenated slices `left || right`.
 #[inline]
+#[must_use]
 pub fn hash_pair(alg: HashAlg, left: &[u8], right: &[u8]) -> [u8; 32] {
     match alg {
         HashAlg::Sha256 => {
@@ -45,18 +47,25 @@ pub fn hash_pair(alg: HashAlg, left: &[u8], right: &[u8]) -> [u8; 32] {
     }
 }
 
-/// W4 Input: Cryptographic State & Merkle Membership Checks (SHA-256 W4a & Keccak-256 W4b).
+/// `W4` Input: Cryptographic State & Merkle Membership Checks (SHA-256 `W4a` & Keccak-256 `W4b`).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MerkleBatchInput {
-    pub leaves: Vec<[u8; 32]>,       // n secret leaves
-    pub paths: Vec<Vec<[u8; 32]>>,   // d=8 sibling hashes per leaf
-    pub indices: Vec<u32>,           // Leaf position bits
-    pub expected_root: [u8; 32],     // Public Merkle state root
-    pub hash_alg: HashAlg,           // W4a (Sha256) vs W4b (Keccak256)
+    pub leaves: Vec<[u8; 32]>,     // n secret leaves
+    pub paths: Vec<Vec<[u8; 32]>>, // d=8 sibling hashes per leaf
+    pub indices: Vec<u32>,         // Leaf position bits
+    pub expected_root: [u8; 32],   // Public Merkle state root
+    pub hash_alg: HashAlg,         // W4a (Sha256) vs W4b (Keccak256)
     pub policy: OutputPolicy,
 }
 
-/// Verifies n Merkle inclusion paths of depth d under SHA-256 (W4a) or Keccak-256 (W4b).
+/// Verifies `n` Merkle inclusion paths of depth `d` under SHA-256 (`W4a`) or Keccak-256 (`W4b`).
+///
+/// # Panics
+///
+/// Panics if input slice lengths mismatch or if any Merkle authentication path fails to
+/// reconstruct `expected_root`.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
 pub fn verify_merkle_batch(input: &MerkleBatchInput) -> Vec<u8> {
     let n = input.leaves.len();
     assert_eq!(n, input.paths.len(), "Leaves and paths length mismatch");

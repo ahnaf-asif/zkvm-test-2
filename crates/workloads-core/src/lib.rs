@@ -21,25 +21,25 @@ pub use bigint_mod::{
 pub use hashing::{hash_bytes, hash_pair, verify_merkle_batch, MerkleBatchInput};
 pub use voting::{verify_voting_batch, VotingBatchInput};
 
-/// Cryptographic hash function selector for W4 (W4a vs W4b) and Policy P2 digest folding.
+/// Cryptographic hash function selector for `W4` (`W4a` vs `W4b`) and Policy `P2` digest folding.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HashAlg {
     Sha256,
     Keccak256,
 }
 
-/// Public Output Commitment Policy (P_io) governing host-to-EVM journal structure.
+/// Public Output Commitment Policy (`P_io`) governing host-to-EVM journal structure.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutputPolicy {
-    /// Policy P1: Commit all n 32-byte item commitments + 4-byte count (32*n + 4 bytes).
+    /// Policy `P1`: Commit all `n` 32-byte item commitments + 4-byte count (`32 * n + 4` bytes).
     RawCommitArray,
-    /// Policy P2 (SHA-256): Fold into single 32-byte SHA-256 digest + 4-byte count (36 bytes).
+    /// Policy `P2` (SHA-256): Fold into single 32-byte SHA-256 digest + 4-byte count (`36` bytes).
     HashCommit,
-    /// Policy P2 (Keccak-256): Fold into single 32-byte Keccak-256 digest + 4-byte count (36 bytes).
+    /// Policy `P2` (Keccak-256): Fold into single 32-byte Keccak-256 digest + 4-byte count (`36` bytes).
     HashCommitKeccak,
 }
 
-/// Unified workload envelope enabling a single deterministic guest binary to dispatch W1..W5.
+/// Unified workload envelope enabling a single deterministic guest binary to dispatch `W1`..`W5`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum WorkloadPayload {
     W1Voting(VotingBatchInput),
@@ -49,7 +49,8 @@ pub enum WorkloadPayload {
     W5BigInt(BigIntBatchInput),
 }
 
-/// Dispatches any workload variant (W1..W5) and returns the serialized public journal bytes.
+/// Dispatches any workload variant (`W1`..`W5`) and returns the serialized public journal bytes.
+#[must_use]
 pub fn execute_workload(payload: &WorkloadPayload) -> Vec<u8> {
     match payload {
         WorkloadPayload::W1Voting(input) => verify_voting_batch(input),
@@ -60,12 +61,14 @@ pub fn execute_workload(payload: &WorkloadPayload) -> Vec<u8> {
     }
 }
 
-/// Finalizes the public journal according to OutputPolicy (defaulting HashCommit to SHA-256).
+/// Finalizes the public journal according to [`OutputPolicy`] (defaulting [`OutputPolicy::HashCommit`] to SHA-256).
+#[must_use]
 pub fn finalize_journal(raw_commits: Vec<u8>, count: u32, policy: OutputPolicy) -> Vec<u8> {
     finalize_journal_with_alg(raw_commits, count, policy, HashAlg::Sha256)
 }
 
-/// Finalizes the public journal with explicit hash algorithm selection for HashCommit mode.
+/// Finalizes the public journal with explicit hash algorithm selection for [`OutputPolicy::HashCommit`] mode.
+#[must_use]
 pub fn finalize_journal_with_alg(
     mut raw_commits: Vec<u8>,
     count: u32,
@@ -126,7 +129,7 @@ mod tests {
         let journal_p1 = verify_voting_batch(&input_p1);
         assert_eq!(journal_p1.len(), 32 * 2 + 4);
 
-        let mut input_p2 = input_p1.clone();
+        let mut input_p2 = input_p1;
         input_p2.policy = OutputPolicy::HashCommit;
         let journal_p2 = verify_voting_batch(&input_p2);
         assert_eq!(journal_p2.len(), 36);
@@ -148,7 +151,7 @@ mod tests {
         for &b in &[8u32, 16, 32, 64, 96, 120] {
             let input = AuctionRangeInput {
                 bids_lo: vec![100, 250],
-                bids_hi: vec![0, if b > 64 { 1 } else { 0 }],
+                bids_hi: vec![0, u64::from(b > 64)],
                 blindings: vec![[3u8; 32], [4u8; 32]],
                 bit_width: b,
                 reserve_lo: 50,
@@ -205,7 +208,6 @@ mod tests {
             let leaf = [7u8; 32];
             let sib0 = [8u8; 32];
             let sib1 = [9u8; 32];
-            // idx = 2 (binary 10): level 0 is even (0), level 1 is odd (1)
             let h0 = hash_pair(alg, &leaf, &sib0);
             let root = hash_pair(alg, &sib1, &h0);
 
@@ -240,9 +242,9 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_possible_truncation)]
     fn test_w5_montgomery_exact_equivalence_against_u128() {
-        // Verify exact mathematical correctness of bigint_mul_mod_limbs against u128 for k=2 (64-bit)
-        let m: u64 = 0xFFFF_FFFF_FFFF_FFC5; // Odd 64-bit prime-like modulus
+        let m: u64 = 0xFFFF_FFFF_FFFF_FFC5;
         let a: u64 = 0x1234_5678_9ABC_DEF1;
         let b: u64 = 0x0FED_CBA9_8765_4321;
 
@@ -251,12 +253,14 @@ mod tests {
         let b_limbs = [b as u32, (b >> 32) as u32];
 
         let res_limbs = bigint_mul_mod_limbs(&a_limbs, &b_limbs, &m_limbs);
-        let res_u64 = (res_limbs[0] as u64) | ((res_limbs[1] as u64) << 32);
+        let res_u64 = u64::from(res_limbs[0]) | (u64::from(res_limbs[1]) << 32);
 
-        // In Montgomery arithmetic, res * R == a * b (mod m), where R = 2^64
-        let r_mod_m: u128 = (1u128 << 64) % (m as u128);
-        let lhs: u128 = ((res_u64 as u128) * r_mod_m) % (m as u128);
-        let rhs: u128 = ((a as u128) * (b as u128)) % (m as u128);
-        assert_eq!(lhs, rhs, "Montgomery reduction must satisfy res * R == a * b (mod M)");
+        let r_mod_m: u128 = (1u128 << 64) % u128::from(m);
+        let lhs: u128 = (u128::from(res_u64) * r_mod_m) % u128::from(m);
+        let rhs: u128 = (u128::from(a) * u128::from(b)) % u128::from(m);
+        assert_eq!(
+            lhs, rhs,
+            "Montgomery reduction must satisfy res * R == a * b (mod M)"
+        );
     }
 }

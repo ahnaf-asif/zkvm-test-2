@@ -1,86 +1,214 @@
-use serde::{Deserialize, Serialize};
-use workloads_core::{HashAlg, OutputPolicy};
+pub mod cli;
+pub mod config;
+pub mod fixture;
+pub mod generator;
+pub mod metrics;
+pub mod rng;
+pub mod types;
 
-/// Execution stage corresponding to Sections 5.3 - 5.5 of Test Run #2.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProvingMode {
-    /// Stage A: Off-chain execution-only simulation (up to n = 1024).
-    ExecOnly,
-    /// Stage B: Local Apple M1 Core STARK / Lookup / IVC proof generation (n = 1..64/128).
-    CoreProve,
-    /// Stage C: Recursive STARK-to-SNARK Groth16 / PLONK compression (n in {1, 4, 16, 64, 256}).
-    SnarkWrapGroth16,
-    /// Stage C (PLONK variant for SP1):
-    SnarkWrapPlonk,
-}
+pub use cli::RunnerCliArgs;
+pub use config::{BenchmarkConfig, SuitePresetConfig, DEFAULT_CONFIG_PATH};
+pub use fixture::{decode_hex, encode_hex_prefixed, EvmProofFixture};
+pub use generator::{
+    canonical_input_filename, generate_workload_payload, read_payload_from_file,
+    write_payload_to_file, VectorCoordinate,
+};
+pub use metrics::RunMetrics;
+pub use rng::{derive_config_rng, ChaCha20Rng};
+pub use types::{
+    hash_alg_slug, parse_hash_alg, parse_output_policy, policy_slug, ProvingMode, WorkloadKind,
+};
 
-/// Standardized dependent metrics recorded across all zkVMs in Test Run #2 (Table 2).
-/// Prevents fragile stdout scraping by writing validated JSON/CSV rows directly to disk.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct RunMetrics {
-    pub vm: String,
-    pub workload: String,
-    pub batch_n: usize,
-    pub param_value: u32, // b (W2), M (W3), d (W4), or L (W5)
-    pub policy: OutputPolicy,
-    pub hash_alg: HashAlg,
-    pub precompiles_enabled: bool,
-    pub mode: ProvingMode,
-    /// C_user: Unpadded RISC-V instruction count executed by guest (including I/O).
-    pub cycles_user: u64,
-    /// C_predicate: Pure computational predicate cycles (excluding guest I/O deserialization).
-    pub cycles_predicate: u64,
-    /// C_padded: Padded trace length (\sum 2^{k_i}) committed into AIR/STARK segments.
-    pub cycles_padded: u64,
-    /// N_shards: Number of trace segments/shards generated during execution.
-    pub shards: u32,
-    /// T_exec (ms): Native execution-only runtime.
-    pub exec_ms: f64,
-    /// T_core (ms): Wall-clock time to generate Core STARK / Lookup / IVC proof.
-    pub prove_ms: f64,
-    /// T_wrap (ms): Wall-clock time to recursively compress Core STARK into BN254 SNARK.
-    pub wrap_ms: f64,
-    /// Off-chain verification time (ms).
-    pub verify_ms: f64,
-    /// \pi_core (Bytes): Serialized byte length of uncompressed Core proof artifact.
-    pub core_proof_bytes: usize,
-    /// \pi_evm (Bytes): Serialized byte length of wrapped EVM SNARK proof.
-    pub evm_proof_bytes: usize,
-    /// Serialized public journal byte length (32*n + 4 for P1 vs 36 for P2).
-    pub journal_bytes: usize,
-    /// M_peak (MB): Peak physical RAM (Resident Set Size) via macOS /usr/bin/time -l.
-    pub peak_rss_mb: f64,
-    /// Execution status ("OK", "OOM", "TIMEOUT").
-    pub status: String,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use workloads_core::{execute_workload, HashAlg, OutputPolicy};
 
-impl RunMetrics {
-    pub const CSV_HEADER: &'static str = "vm,workload,batch_n,param_value,policy,hash_alg,precompiles,mode,cycles_user,cycles_predicate,cycles_padded,shards,exec_ms,prove_ms,wrap_ms,verify_ms,core_proof_bytes,evm_proof_bytes,journal_bytes,peak_rss_mb,status";
+    #[test]
+    fn test_config_loads_and_validates() {
+        let cfg = BenchmarkConfig::load(None).expect("config should load");
+        cfg.validate().expect("config should be valid");
+        assert!(cfg.presets.contains_key("all"));
+        assert!(cfg.presets.contains_key("smoke"));
+    }
 
-    pub fn to_csv_row(&self) -> String {
-        format!(
-            "{},{},{},{},{:?},{:?},{},{:?},{},{},{},{},{:.3},{:.3},{:.3},{:.3},{},{},{},{:.2},{}",
-            self.vm,
-            self.workload,
-            self.batch_n,
-            self.param_value,
-            self.policy,
-            self.hash_alg,
-            self.precompiles_enabled,
-            self.mode,
-            self.cycles_user,
-            self.cycles_predicate,
-            self.cycles_padded,
-            self.shards,
-            self.exec_ms,
-            self.prove_ms,
-            self.wrap_ms,
-            self.verify_ms,
-            self.core_proof_bytes,
-            self.evm_proof_bytes,
-            self.journal_bytes,
-            self.peak_rss_mb,
-            self.status
-        )
+    #[test]
+    fn test_chacha20_rng_determinism() {
+        let cfg = BenchmarkConfig::load(None).unwrap();
+        let mut rng1 = ChaCha20Rng::seed_from_u64(cfg.seed);
+        let mut rng2 = ChaCha20Rng::seed_from_u64(cfg.seed);
+        for _ in 0..100 {
+            assert_eq!(rng1.next_u64(), rng2.next_u64());
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn test_generate_all_workloads_from_config() {
+        let cfg = BenchmarkConfig::load(None).unwrap();
+        let cases = [
+            (
+                WorkloadKind::W1Voting,
+                1,
+                1,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W1Voting,
+                8,
+                4,
+                OutputPolicy::RawCommitArray,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W2Auction,
+                4,
+                8,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W2Auction,
+                4,
+                32,
+                OutputPolicy::RawCommitArray,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W2Auction,
+                4,
+                64,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W2Auction,
+                4,
+                96,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W2Auction,
+                4,
+                120,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W3Allowlist,
+                4,
+                16,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W3Allowlist,
+                4,
+                64,
+                OutputPolicy::RawCommitArray,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W4Merkle,
+                4,
+                8,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W4Merkle,
+                4,
+                8,
+                OutputPolicy::HashCommitKeccak,
+                HashAlg::Keccak256,
+            ),
+            (
+                WorkloadKind::W5BigInt,
+                2,
+                256,
+                OutputPolicy::HashCommit,
+                HashAlg::Sha256,
+            ),
+            (
+                WorkloadKind::W5BigInt,
+                1,
+                2048,
+                OutputPolicy::RawCommitArray,
+                HashAlg::Sha256,
+            ),
+        ];
+
+        for (workload, batch_n, param_value, policy, hash_alg) in cases {
+            let coord = VectorCoordinate {
+                workload,
+                batch_n,
+                param_value,
+                policy,
+                hash_alg,
+            };
+            let p1 = generate_workload_payload(&cfg, coord).expect("generation should succeed");
+            let p2 =
+                generate_workload_payload(&cfg, coord).expect("repeated generation should succeed");
+            assert_eq!(
+                execute_workload(&p1),
+                execute_workload(&p2),
+                "Deterministic payload execution must produce identical public journals"
+            );
+        }
+    }
+
+    #[test]
+    fn test_cli_args_parser_and_config_defaults() {
+        let parsed = RunnerCliArgs::parse_from_iter([
+            "--workload",
+            "w2",
+            "--batch-n",
+            "16",
+            "--bits",
+            "32",
+            "--mode",
+            "core",
+            "--precompiles",
+            "true",
+            "--policy",
+            "p1",
+        ])
+        .expect("CLI parse should succeed");
+
+        assert_eq!(parsed.workload, WorkloadKind::W2Auction);
+        assert_eq!(parsed.batch_n, 16);
+        assert_eq!(parsed.param_value, 32);
+        assert_eq!(parsed.mode, ProvingMode::CoreProve);
+        assert!(parsed.precompiles_enabled);
+        assert_eq!(parsed.policy, OutputPolicy::RawCommitArray);
+    }
+
+    #[test]
+    fn test_evm_proof_fixture_hex_and_camel_case_json() {
+        let vkey = [0xABu8; 32];
+        let pub_vals = [1u8, 2, 3, 4];
+        let proof = [0xCDu8; 8];
+
+        let fixture = EvmProofFixture::new(
+            "sp1",
+            "groth16",
+            WorkloadKind::W2Auction,
+            64,
+            32,
+            OutputPolicy::HashCommit,
+            HashAlg::Sha256,
+            &vkey,
+            &pub_vals,
+            &proof,
+        );
+        let json = serde_json::to_string(&fixture).unwrap();
+        assert!(json.contains("\"vkey\":\"0x"));
+        assert!(json.contains("\"publicValues\":\"0x01020304\""));
+        assert!(json.contains("\"proof\":\"0xcdcdcdcdcdcdcdcd\""));
+
+        let decoded = decode_hex(&fixture.public_values).unwrap();
+        assert_eq!(decoded, pub_vals);
     }
 }
