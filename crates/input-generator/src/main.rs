@@ -254,7 +254,7 @@ mod tests {
         fs::create_dir_all(&tmp_dir).unwrap();
 
         let (canonical_suite, coords) = build_suite_coordinates(&cfg, "smoke").unwrap();
-        assert!(!coords.is_empty());
+        assert_ne!(coords, Vec::new());
 
         let mut entries = Vec::new();
         for coord in coords {
