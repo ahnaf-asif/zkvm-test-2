@@ -1,0 +1,81 @@
+{
+  "seed": 20261111,
+  "paths": {
+    "data_dir": "data",
+    "results_dir": "results",
+    "proofs_dir": "evm-profiler/proofs"
+  },
+  "defaults": {
+    "workload": "W2",
+    "batch_n": 1,
+    "policy": "HashCommit",
+    "hash_alg": "Sha256",
+    "mode": "ExecOnly",
+    "precompiles_enabled": false
+  },
+  "presets": {
+    "all": {
+      "main_batches": [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024],
+      "param_sweep_batches": [1, 4, 16, 64],
+      "w5_base_batches": [1, 2, 4, 8, 16, 32, 64, 128],
+      "w5_limb_sweep_batches": [1, 2, 4, 8, 16]
+    },
+    "stage-a": {
+      "main_batches": [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024],
+      "param_sweep_batches": [1, 4, 16, 64],
+      "w5_base_batches": [1, 2, 4, 8, 16, 32, 64, 128],
+      "w5_limb_sweep_batches": [1, 2, 4, 8, 16]
+    },
+    "stage-b": {
+      "main_batches": [1, 2, 4, 8, 16, 32, 64, 128],
+      "param_sweep_batches": [1, 4, 16, 64],
+      "w5_base_batches": [1, 2, 4, 8, 16, 32, 64, 128],
+      "w5_limb_sweep_batches": [1, 2, 4, 8, 16]
+    },
+    "stage-c": {
+      "main_batches": [1, 4, 16, 64, 256],
+      "param_sweep_batches": [1, 4, 16, 64],
+      "w5_base_batches": [1, 4, 16, 64],
+      "w5_limb_sweep_batches": [1, 4, 16]
+    },
+    "smoke": {
+      "main_batches": [1, 4, 16, 64],
+      "param_sweep_batches": [1, 16],
+      "w5_base_batches": [1, 4, 16],
+      "w5_limb_sweep_batches": [1, 4]
+    }
+  },
+  "workloads": {
+    "w1_voting": {
+      "default_candidates": 4,
+      "candidate_counts": [1, 4],
+      "policies": ["RawCommitArray", "HashCommit"]
+    },
+    "w2_auction": {
+      "default_bit_width": 32,
+      "sweep_bit_widths": [8, 16, 64, 96, 120],
+      "reserve_lo": 50,
+      "reserve_hi": 0,
+      "policies": ["RawCommitArray", "HashCommit"]
+    },
+    "w3_allowlist": {
+      "default_cardinality": 64,
+      "sweep_cardinalities": [16, 256],
+      "base_member_id": 10000,
+      "max_step": 997,
+      "policies": ["RawCommitArray", "HashCommit"]
+    },
+    "w4_merkle": {
+      "default_depth": 8,
+      "depths": [8],
+      "sha256_policies": ["RawCommitArray", "HashCommit"],
+      "keccak256_policies": ["RawCommitArray", "HashCommit", "HashCommitKeccak"]
+    },
+    "w5_bigint": {
+      "default_modulus_bits": 256,
+      "sweep_modulus_bits": [512, 1024, 2048],
+      "exponent": 65537,
+      "policies": ["RawCommitArray", "HashCommit"]
+    }
+  }
+}

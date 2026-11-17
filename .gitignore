@@ -4,3 +4,6 @@ target/
 /evm-profiler/out
 /evm-profiler/cache
 /evm-profiler/broadcast
+/data/*.json
+/data/*.bin
+!/data/.gitkeep
