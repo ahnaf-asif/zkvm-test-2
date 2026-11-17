@@ -5,7 +5,7 @@ This directory contains the Mermaid source definitions, layout configuration, an
 - **Mermaid Layout Configuration**: [`mermaid-config.json`](./mermaid-config.json)
 - **Diagram 1 (7-Layer End-to-End Pipeline)**: [`system_design.mmd`](./system_design.mmd) | [`system_design.pdf`](./system_design.pdf)
 - **Diagram 2 (Host-Guest Workspace Isolation)**: [`host_guest_isolation.mmd`](./host_guest_isolation.mmd) | [`host_guest_isolation.pdf`](./host_guest_isolation.pdf)
-- **Diagram 3 (On-Chain EVM Settlement Sequence $\mathcal{P}_1$ vs. $\mathcal{P}_2$)**: [`evm_settlement_sequence.mmd`](./evm_settlement_sequence.mmd) | [`evm_settlement_sequence.pdf`](./evm_settlement_sequence.pdf)
+- **Diagram 3 (On-Chain EVM Settlement Sequence $`\mathcal{P}_1`$ vs. $`\mathcal{P}_2`$)** : [`evm_settlement_sequence.mmd`](./evm_settlement_sequence.mmd) | [`evm_settlement_sequence.pdf`](./evm_settlement_sequence.pdf)
 
 ---
 
@@ -158,7 +158,7 @@ flowchart LR
 
 ---
 
-## 3. On-Chain Settlement Sequence: Policy $\mathcal{P}_1$ vs. Policy $\mathcal{P}_2$
+## 3. On-Chain Settlement Sequence: Policy $`\mathcal{P}_1`$ vs. Policy $`\mathcal{P}_2`$
 
 ```mermaid
 sequenceDiagram
